@@ -1,0 +1,26 @@
+# Dockerfile.trainer — Imagen del servicio de entrenamiento
+
+FROM python:3.10-slim
+
+LABEL description="Trainer: entrena y valida modelo de renovación de préstamo"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src/ ./src/
+
+RUN mkdir -p artifacts data mlruns
+
+CMD python src/generate_data.py && \
+    python src/train_pipeline.py && \
+    python src/validate_model.py && \
+    echo "✓ Trainer completado exitosamente"

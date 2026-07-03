@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+
+.env
+.env.*
+!.env.example
+
+artifacts/
+mlruns/
+mlartifacts/
+data/*.csv
+
+.coverage
+htmlcov/
+.pytest_cache/

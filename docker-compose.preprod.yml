@@ -1,0 +1,89 @@
+version: "3.9"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: renovacion-mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlruns/mlflow.db
+      --default-artifact-root file:///mlruns
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - mlruns_vol:/mlruns
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')",
+        ]
+      interval: 15s
+      timeout: 8s
+      retries: 5
+      start_period: 60s
+    networks:
+      - renovacion-net
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile.trainer
+    container_name: renovacion-trainer
+    env_file: .env.preprod
+    volumes:
+      - artifacts_vol:/app/artifacts
+      - mlruns_vol:/app/mlruns
+      - data_vol:/app/data
+      - ./data:/app/data
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    networks:
+      - renovacion-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: renovacion-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file: .env.preprod
+    volumes:
+      - artifacts_vol:/app/artifacts
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      trainer:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - renovacion-net
+
+volumes:
+  artifacts_vol:
+  mlruns_vol:
+  data_vol:
+
+networks:
+  renovacion-net:
+    driver: bridge
